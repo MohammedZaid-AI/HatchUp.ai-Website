@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HatchUp.ai - Innovation is Hatching</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <img src="hatchuplogo.png" alt="HatchUp.ai Logo">
+                <h1>Hatchup<span class="accent">.ai</span></h1>
+            </div>
+        </header>
+        
+        <main>
+            <div class="hero">
+                <h2 class="headline">
+                    <span>INNOVATION IS</span>
+                    <span>HATCHING</span>
+                </h2>
+                <p class="subheadline">
+                    Join us on the journey to transform the future of technology.
+                    <br>
+                    Be the first to know when we launch.
+                </p>
+                
+                <div class="signup-form">
+                    <form id="email-form">
+                        <input type="email" id="email" placeholder="Enter your email" required>
+                        <button type="submit" id="submit-btn">
+                            Get Notified
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M5 12h14"></path>
+                                <path d="M12 5l7 7-7 7"></path>
+                            </svg>
+                        </button>
+                    </form>
+                    <div id="message" class="message"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
