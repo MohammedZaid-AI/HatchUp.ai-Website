@@ -7,6 +7,27 @@ const PORT = process.env.PORT || 3000;
 // Add Excel.js for Excel file generation
 const ExcelJS = require('exceljs');
 
+// Create data directory if it doesn't exist
+const dataDir = process.env.DATA_DIR || path.join(__dirname, 'data');
+if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+}
+
+// Path to the JSON file
+const subscribersFile = path.join(dataDir, 'subscribers.json');
+
+// Initialize subscribers file if it doesn't exist
+if (!fs.existsSync(subscribersFile)) {
+    // If the file doesn't exist but we have an existing subscribers.json in the root,
+    // copy that data to the new location
+    const oldFile = path.join(__dirname, 'subscribers.json');
+    if (fs.existsSync(oldFile)) {
+        fs.copyFileSync(oldFile, subscribersFile);
+    } else {
+        fs.writeFileSync(subscribersFile, JSON.stringify([], null, 2));
+    }
+}
+
 // Middleware to parse JSON bodies
 app.use(express.json());
 
@@ -22,14 +43,11 @@ app.post('/api/subscribe', (req, res) => {
         return res.json({ success: false, message: 'Invalid email address' });
     }
     
-    // Path to the JSON file
-    const dataFile = path.join(__dirname, 'subscribers.json');
-    
     try {
-        // Read existing subscribers or create empty array
+        // Read existing subscribers
         let subscribers = [];
-        if (fs.existsSync(dataFile)) {
-            const data = fs.readFileSync(dataFile, 'utf8');
+        if (fs.existsSync(subscribersFile)) {
+            const data = fs.readFileSync(subscribersFile, 'utf8');
             subscribers = JSON.parse(data);
         }
         
@@ -45,7 +63,7 @@ app.post('/api/subscribe', (req, res) => {
         });
         
         // Write back to file
-        fs.writeFileSync(dataFile, JSON.stringify(subscribers, null, 2));
+        fs.writeFileSync(subscribersFile, JSON.stringify(subscribers, null, 2));
         
         res.json({ success: true });
     } catch (error) {
@@ -67,7 +85,6 @@ app.get('/api/export-excel', (req, res) => {
     
     try {
         // Read subscribers from JSON file
-        const subscribersFile = path.join(__dirname, 'subscribers.json');
         const data = fs.readFileSync(subscribersFile, 'utf8');
         const subscribers = JSON.parse(data);
         
@@ -115,4 +132,5 @@ app.get('/api/export-excel', (req, res) => {
 app.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}`);
     console.log(`Open your browser and navigate to http://localhost:${PORT} to view your website`);
+    console.log(`Storing subscriber data in: ${subscribersFile}`);
 });
