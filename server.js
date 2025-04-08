@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 3000;
 const ExcelJS = require('exceljs');
 
 // MongoDB Atlas connection string
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://mohammedzaid83505:<Zaid017@hatchup.0zoofyy.mongodb.net/?retryWrites=true&w=majority&appName=HatchUp';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://mohammedzaid83505:Zaid017@hatchup.0zoofyy.mongodb.net/?retryWrites=true&w=majority&appName=HatchUp';
 let db;
 
 // Connect to MongoDB
