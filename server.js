@@ -1,30 +1,56 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const { MongoClient } = require('mongodb');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Add Excel.js for Excel file generation
 const ExcelJS = require('exceljs');
 
-// Create data directory if it doesn't exist
-const dataDir = process.env.DATA_DIR || path.join(__dirname, 'data');
-if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
+// MongoDB Atlas connection string
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://mohammedzaid83505:<Zaid017@hatchup.0zoofyy.mongodb.net/?retryWrites=true&w=majority&appName=HatchUp';
+let db;
+
+// Connect to MongoDB
+async function connectToMongoDB() {
+    try {
+        const client = new MongoClient(MONGODB_URI);
+        await client.connect();
+        console.log('Connected to MongoDB Atlas');
+        db = client.db('hatchup');
+        
+        // Migrate existing data if needed
+        await migrateExistingData();
+        
+        return true;
+    } catch (error) {
+        console.error('Failed to connect to MongoDB:', error);
+        return false;
+    }
 }
 
-// Path to the JSON file
-const subscribersFile = path.join(dataDir, 'subscribers.json');
-
-// Initialize subscribers file if it doesn't exist
-if (!fs.existsSync(subscribersFile)) {
-    // If the file doesn't exist but we have an existing subscribers.json in the root,
-    // copy that data to the new location
+// Migrate data from local JSON file to MongoDB if needed
+async function migrateExistingData() {
     const oldFile = path.join(__dirname, 'subscribers.json');
     if (fs.existsSync(oldFile)) {
-        fs.copyFileSync(oldFile, subscribersFile);
-    } else {
-        fs.writeFileSync(subscribersFile, JSON.stringify([], null, 2));
+        try {
+            const data = fs.readFileSync(oldFile, 'utf8');
+            const subscribers = JSON.parse(data);
+            
+            if (subscribers.length > 0) {
+                // Check if we already have data in MongoDB
+                const count = await db.collection('subscribers').countDocuments();
+                if (count === 0) {
+                    // Only migrate if MongoDB collection is empty
+                    console.log(`Migrating ${subscribers.length} subscribers to MongoDB...`);
+                    await db.collection('subscribers').insertMany(subscribers);
+                    console.log('Migration complete');
+                }
+            }
+        } catch (error) {
+            console.error('Error migrating data:', error);
+        }
     }
 }
 
@@ -35,7 +61,7 @@ app.use(express.json());
 app.use(express.static(__dirname));
 
 // API endpoint to handle email subscriptions
-app.post('/api/subscribe', (req, res) => {
+app.post('/api/subscribe', async (req, res) => {
     const email = req.body.email;
     
     // Validate email
@@ -44,36 +70,54 @@ app.post('/api/subscribe', (req, res) => {
     }
     
     try {
-        // Read existing subscribers
-        let subscribers = [];
-        if (fs.existsSync(subscribersFile)) {
-            const data = fs.readFileSync(subscribersFile, 'utf8');
-            subscribers = JSON.parse(data);
+        if (db) {
+            // Check if email already exists
+            const existingSubscriber = await db.collection('subscribers').findOne({ email });
+            if (existingSubscriber) {
+                return res.json({ success: false, message: 'You\'re already on our list!' });
+            }
+            
+            // Add new subscriber to MongoDB
+            await db.collection('subscribers').insertOne({
+                email: email,
+                date: new Date().toISOString()
+            });
+            
+            return res.json({ success: true });
+        } else {
+            // Fallback to local file if MongoDB is not available
+            // Read existing subscribers
+            let subscribers = [];
+            const subscribersFile = path.join(__dirname, 'subscribers.json');
+            if (fs.existsSync(subscribersFile)) {
+                const data = fs.readFileSync(subscribersFile, 'utf8');
+                subscribers = JSON.parse(data);
+            }
+            
+            // Check if email already exists
+            if (subscribers.some(sub => sub.email === email)) {
+                return res.json({ success: false, message: 'You\'re already on our list!' });
+            }
+            
+            // Add new subscriber
+            subscribers.push({
+                email: email,
+                date: new Date().toISOString()
+            });
+            
+            // Write back to file
+            fs.writeFileSync(subscribersFile, JSON.stringify(subscribers, null, 2));
+            
+            return res.json({ success: true });
         }
-        
-        // Check if email already exists
-        if (subscribers.some(sub => sub.email === email)) {
-            return res.json({ success: false, message: 'You\'re already on our list!' });
-        }
-        
-        // Add new subscriber
-        subscribers.push({
-            email: email,
-            date: new Date().toISOString()
-        });
-        
-        // Write back to file
-        fs.writeFileSync(subscribersFile, JSON.stringify(subscribers, null, 2));
-        
-        res.json({ success: true });
     } catch (error) {
         console.error('Error saving subscriber:', error);
-        res.json({ success: false, message: 'Server error. Please try again.' });
+        return res.json({ success: false, message: 'Server error. Please try again.' });
     }
 });
 
 // New endpoint to download subscribers as Excel file
-app.get('/api/export-excel', (req, res) => {
+app.get('/api/export-excel', async (req, res) => {
     const apiKey = req.query.key;
     
     // Simple API key protection - you should set this as an environment variable
@@ -84,9 +128,17 @@ app.get('/api/export-excel', (req, res) => {
     }
     
     try {
-        // Read subscribers from JSON file
-        const data = fs.readFileSync(subscribersFile, 'utf8');
-        const subscribers = JSON.parse(data);
+        let subscribers = [];
+        
+        if (db) {
+            // Get subscribers from MongoDB
+            subscribers = await db.collection('subscribers').find().toArray();
+        } else {
+            // Fallback to local file
+            const subscribersFile = path.join(__dirname, 'subscribers.json');
+            const data = fs.readFileSync(subscribersFile, 'utf8');
+            subscribers = JSON.parse(data);
+        }
         
         // Create a new Excel workbook
         const workbook = new ExcelJS.Workbook();
@@ -128,9 +180,15 @@ app.get('/api/export-excel', (req, res) => {
     }
 });
 
-// Start the server
-app.listen(PORT, () => {
-    console.log(`Server running at http://localhost:${PORT}`);
-    console.log(`Open your browser and navigate to http://localhost:${PORT} to view your website`);
-    console.log(`Storing subscriber data in: ${subscribersFile}`);
+// Start the server after connecting to MongoDB
+connectToMongoDB().then(() => {
+    app.listen(PORT, () => {
+        console.log(`Server running at http://localhost:${PORT}`);
+        console.log(`Open your browser and navigate to http://localhost:${PORT} to view your website`);
+        if (db) {
+            console.log('Using MongoDB Atlas for data storage');
+        } else {
+            console.log('Using local file storage (fallback mode)');
+        }
+    });
 });
